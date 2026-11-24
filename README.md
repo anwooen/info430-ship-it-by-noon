@@ -1,5 +1,22 @@
 # Ship It by Noon: The one-hour Database App
 
+## This app: Study Session Tracker
+
+Filter study sessions by course and an inclusive date range, then compare total study time by course. The app uses sample data stored in your own SQL Server database: 5 courses and 25 sessions in November 2026.
+
+To run it, connect to UW Wi-Fi or Husky OnNet, install packages with `npm install`, and fill in a local `.env` using `.env.example` (including your own `<NetID>_myapp` database name). Never commit `.env`.
+
+```bash
+npm run create-db
+npm run check
+node db/load.js
+npm start
+```
+
+Open http://localhost:3000. Use November 1–30, 2026 to see all sample sessions. The loader preserves existing data on repeat runs. Stop the server with Ctrl+C.
+
+To check the app, select a single course (5 sample sessions), try a date range in January 2027 (no sessions), and compare the page with `db/queries.sql` using the same filters in VS Code. The course totals should equal the sum of the matching session durations. Invalid date ranges and invalid course IDs return a clean error. The server uses SQL parameters for all filter values.
+
 You will build a small, real web app from your own idea, starting from an empty folder, by directing an AI coding assistant. Nothing in this repository is an app: it holds only **places for things** and **the rules your AI follows**, plus the location of the class database. The idea is yours, the code comes from you directing the AI, and you run it, check it, and fix it.
 
 ```

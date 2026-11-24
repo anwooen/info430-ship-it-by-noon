@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Study Session Tracker</title>
+  <style>
+    :root{font-family:system-ui,sans-serif;color:#18382e;background:#f4f5ef}*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:48px 24px}header{margin-bottom:28px}.eyebrow{font-size:12px;letter-spacing:2px;font-weight:750;color:#587164}h1{font-size:clamp(30px,5vw,46px);letter-spacing:-1.5px;margin:10px 0}p{color:#58675e;line-height:1.6}form,.panel,.metric{background:#fff;border:1px solid #dce2d8;border-radius:14px}form{display:flex;gap:16px;align-items:end;flex-wrap:wrap;padding:22px}label{font-size:13px;font-weight:650;display:flex;flex-direction:column;gap:8px;flex:1;min-width:160px}input,select,button{font:inherit;padding:12px;border:1px solid #c4cfc5;border-radius:7px;background:white;color:#18382e}button{background:#244e3e;color:white;border-color:#244e3e;cursor:pointer;font-weight:650}button:disabled{opacity:.6;cursor:wait}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:22px 0}.metric{padding:20px}.metric span{display:block;color:#637267;font-size:13px}.metric strong{display:block;font-size:30px;margin-top:8px}.panel{padding:24px;margin-top:20px}h2{font-size:20px;margin:0 0 8px}.sub{font-size:14px;margin:0 0 20px}.course{display:grid;grid-template-columns:110px 1fr 100px;gap:16px;align-items:center;margin:20px 0;font-size:14px}.track{height:10px;background:#eef1e9;border-radius:10px;overflow:hidden}.bar{height:100%;background:#7b9971;border-radius:10px}.time{text-align:right;font-variant-numeric:tabular-nums}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px;text-align:left}th{font-size:12px;color:#627366;background:#f4f6f0}th,td{padding:14px 12px;border-bottom:1px solid #e7ebe3}td:last-child,th:last-child{text-align:right;white-space:nowrap}#status{min-height:24px;font-size:14px}#status.error{color:#a13030}footer{font-size:12px;color:#647268;margin-top:24px}a{color:#244e3e}@media(max-width:600px){main{padding:28px 16px}.metrics{gap:8px}.metric{padding:14px}.metric strong{font-size:23px}.course{grid-template-columns:85px 1fr 75px;gap:8px}.panel{padding:16px}button{width:100%}}
+  </style>
+</head>
+<body>
+<main>
+  <header><div class="eyebrow">MAKE TIME FOR WHAT MATTERS</div><h1>Study Session Tracker</h1><p>See where your study time goes, and decide which course needs your attention next.</p></header>
+  <form id="filters">
+    <label>Course<select id="course"><option value="">All courses</option></select></label>
+    <label>From<input id="start" type="date" value="2026-11-01" required></label>
+    <label>Through<input id="end" type="date" value="2026-11-30" required></label>
+    <button id="apply" type="submit">Show study time</button>
+  </form>
+  <p id="status" role="status" aria-live="polite"></p>
+  <div id="results" hidden>
+    <div class="metrics">
+      <div class="metric"><span>Total study time</span><strong id="total"></strong></div>
+      <div class="metric"><span>Study sessions</span><strong id="count"></strong></div>
+      <div class="metric"><span>Courses in view</span><strong id="courses-count"></strong></div>
+    </div>
+    <section class="panel"><h2>Time by course</h2><p class="sub">Least-studied courses appear first. Use this as a starting point for planning your next session.</p><div id="breakdown"></div></section>
+    <section class="panel"><h2>Your study sessions</h2><p class="sub">Most recent first · duration in minutes</p><div class="table-wrap"><table><thead><tr><th scope="col">Date</th><th scope="col">Course</th><th scope="col">Topic</th><th scope="col">Minutes</th></tr></thead><tbody id="sessions"></tbody></table></div></section>
+  </div>
+  <footer>INFO 430 · Sample study sessions stored in your SQL Server database. Dates include both endpoints.</footer>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  const formatTime = minutes => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  async function getJSON(url) {
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not load data.');
+    return data;
+  }
+  async function loadResults() {
+    $('apply').disabled = true;
+    $('results').hidden = true;
+    $('status').className = '';
+    $('status').textContent = 'Loading study sessions…';
+    try {
+      const params = new URLSearchParams({courseId: $('course').value, startDate: $('start').value, endDate: $('end').value});
+      const data = await getJSON('/api/study-sessions?' + params);
+      $('total').textContent = formatTime(data.courses.reduce((sum, c) => sum + c.total_minutes, 0));
+      $('count').textContent = data.sessions.length;
+      $('courses-count').textContent = data.courses.length;
+      $('breakdown').replaceChildren();
+      const max = Math.max(1, ...data.courses.map(c => c.total_minutes));
+      for (const course of data.courses) {
+        const row = document.createElement('div'); row.className = 'course';
+        const name = document.createElement('strong'); name.textContent = course.course_code; name.title = course.course_name;
+        const track = document.createElement('div'); track.className = 'track'; track.setAttribute('aria-hidden', 'true');
+        const bar = document.createElement('div'); bar.className = 'bar'; bar.style.width = (course.total_minutes / max * 100) + '%'; track.append(bar);
+        const time = document.createElement('span'); time.className = 'time'; time.textContent = formatTime(course.total_minutes);
+        row.append(name, track, time); $('breakdown').append(row);
+      }
+      $('sessions').replaceChildren();
+      for (const session of data.sessions) {
+        const row = document.createElement('tr');
+        for (const value of [session.study_date, session.course_code, session.topic, session.duration_minutes]) {
+          const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
+        }
+        $('sessions').append(row);
+      }
+      $('status').textContent = data.sessions.length ? 'Showing study sessions from ' + $('start').value + ' through ' + $('end').value + '.' : 'No study sessions in this range. Try different dates or another course.';
+      $('results').hidden = false;
+    } catch (error) { $('status').className = 'error'; $('status').textContent = error.message; }
+    finally { $('apply').disabled = false; }
+  }
+  $('filters').addEventListener('submit', event => { event.preventDefault(); loadResults(); });
+  async function initialize() {
+    try {
+      const courses = await getJSON('/api/courses');
+      for (const course of courses) {
+        const option = document.createElement('option'); option.value = course.course_id;
+        option.textContent = course.course_code + ' — ' + course.course_name; $('course').append(option);
+      }
+      await loadResults();
+    } catch (error) { $('status').className = 'error'; $('status').textContent = error.message; }
+  }
+  initialize();
+</script>
+</body>
+</html>
